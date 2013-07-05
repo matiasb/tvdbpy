@@ -33,5 +33,5 @@ class TvDB(BaseTvDB):
     def search(self, title):
         """Search for series with the specified title."""
         response = self._get('GetSeries.php', seriesname=title)
-        root = ET.fromstring(response.text)
+        root = ET.fromstring(response.content)
         return root.findall('./Series')

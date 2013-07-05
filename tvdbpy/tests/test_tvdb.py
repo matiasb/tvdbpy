@@ -78,3 +78,14 @@ class TvDBTestCase(BaseTestCase):
         self.requests.get.assert_called_once_with(
             'http://thetvdb.com/api/GetSeries.php',
             params={'seriesname': 'nothing'})
+
+    def test_search_results(self):
+        self.response(url='http://thetvdb.com/api/GetSeries.php',
+                      filename='getseries.xml')
+
+        results = self.tvdb.search('chuck')
+
+        self.assertEqual(len(results), 7)
+        self.requests.get.assert_called_once_with(
+            'http://thetvdb.com/api/GetSeries.php',
+            params={'seriesname': 'chuck'})
