@@ -36,7 +36,7 @@ class BaseTestCase(unittest.TestCase):
         self.requests = patcher.start()
         self.addCleanup(patcher.stop)
 
-    def response(self, url=None, method='GET', status_code=200, filename=None,
+    def response(self, method='GET', status_code=200, filename=None,
                  content_type='text/xml'):
         """Set a custom response from a file."""
         data = ''
@@ -83,8 +83,7 @@ class TvDBSearchResultTestCase(BaseTestCase, BaseSeriesMixin):
 
     def setUp(self):
         super(TvDBSearchResultTestCase, self).setUp()
-        self.response(url='http://thetvdb.com/api/GetSeries.php',
-                      filename='getseries.xml')
+        self.response(filename='getseries.xml')
         tvdb = TvDB(api_key='123456789')
         results = tvdb.search('chuck')
         self.result = results[0]
@@ -124,19 +123,19 @@ class TvDBSearchResultTestCase(BaseTestCase, BaseSeriesMixin):
         self.assertRaises(APIClientNotAvailableError, result.get_series)
 
     def test_get_series(self):
-        self.response(
-            url='http://thetvdb.com/api/123456789/series/80348/en.xml',
-            filename='series.xml')
+        self.response(filename='series.xml')
         result = self.result.get_series()
+
+        self.assertIsInstance(result, Series)
+        self.requests.get.assert_called_with(
+            'http://thetvdb.com/api/123456789/series/80348/en.xml', params={})
 
 
 class TvDBSeriesTestCase(BaseTestCase, BaseSeriesMixin):
 
     def setUp(self):
         super(TvDBSeriesTestCase, self).setUp()
-        self.response(
-            url='http://thetvdb.com/api/123456789/series/80348/en.xml',
-            filename='series.xml')
+        self.response(filename='series.xml')
         tvdb = TvDB(api_key='123456789')
         self.result = tvdb.get_series_by_id('80348')
 
@@ -192,9 +191,7 @@ class AnonymousTvDBTestCase(BaseTestCase):
             results = self.tvdb.search('something')
 
     def test_search_no_results(self):
-        self.response(url='http://thetvdb.com/api/GetSeries.php',
-                      filename='empty.xml')
-
+        self.response(filename='empty.xml')
         results = self.tvdb.search('nothing')
 
         self.assertEqual(results, [])
@@ -203,9 +200,7 @@ class AnonymousTvDBTestCase(BaseTestCase):
             params={'seriesname': 'nothing'})
 
     def test_search_results(self):
-        self.response(url='http://thetvdb.com/api/GetSeries.php',
-                      filename='getseries.xml')
-
+        self.response(filename='getseries.xml')
         results = self.tvdb.search('chuck')
 
         self.requests.get.assert_called_once_with(
@@ -226,15 +221,17 @@ class TvDBTestCase(BaseTestCase):
         self.tvdb = TvDB(api_key='123456789')
 
     def test_get_series_by_id(self):
-        self.response(
-            url='http://thetvdb.com/api/123456789/series/321/en.xml',
-            filename='series.xml')
+        self.response(filename='series.xml')
         result = self.tvdb.get_series_by_id(321)
+
         self.assertIsInstance(result, Series)
+        self.requests.get.assert_called_once_with(
+            'http://thetvdb.com/api/123456789/series/321/en.xml', params={})
 
     def test_get_series_by_id_missing_data(self):
-        self.response(
-            url='http://thetvdb.com/api/123456789/series/321/en.xml',
-            filename='empty.xml')
+        self.response(filename='empty.xml')
         result = self.tvdb.get_series_by_id(321)
+
         self.assertIsNone(result)
+        self.requests.get.assert_called_once_with(
+            'http://thetvdb.com/api/123456789/series/321/en.xml', params={})

@@ -86,14 +86,13 @@ class Series(BaseSeries):
 
     def __init__(self, xml_data, client=None):
         super(Series, self).__init__(xml_data, client=client)
-        genre_data = self._elem_value(xml_data, 'Genre')
-        if genre_data:
-            self.genre = genre_data[1:-1].split('|')
-        else:
-            self.genre = []
         self.runtime = self._elem_value(xml_data, 'Runtime')
         self.status = self._elem_value(xml_data, 'Status')
         self._poster = self._elem_value(xml_data, 'poster')
+        self.genre = []
+        genre_data = self._elem_value(xml_data, 'Genre')
+        if genre_data:
+            self.genre = genre_data[1:-1].split('|')
 
     @property
     def poster(self):
