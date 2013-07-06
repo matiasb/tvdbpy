@@ -78,6 +78,8 @@ class TvDBSearchResultTestCase(BaseTestCase):
         self.assertEqual(self.result.name, 'Chuck')
         # when not available, field is None
         self.assertIsNone(result.network)
+        # client is not set since result was not generated from search
+        self.assertIsNone(result._client)
 
     def test_is_search_result(self):
         self.assertIsInstance(self.result, SearchResult)
@@ -97,6 +99,9 @@ class TvDBSearchResultTestCase(BaseTestCase):
         self.assertEqual(
             self.result.banner,
             'http://thetvdb.com/banners/graphical/80348-g32.jpg')
+
+    def test_search_result_client_set(self):
+        self.assertIsNotNone(self.result._client)
 
 
 class TvDBTestCase(BaseTestCase):

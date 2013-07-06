@@ -16,6 +16,10 @@ class BaseTvDB(object):
     _base_api_url = 'http://thetvdb.com/api/'
     _base_image_url = 'http://thetvdb.com/banners/'
 
+    def __init__(self, client=None):
+        super(BaseTvDB, self).__init__()
+        self._client = client
+
     def _elem_value(self, xml_data, elem_name):
         elem = xml_data.find(elem_name)
         return getattr(elem, 'text', None)
@@ -39,7 +43,8 @@ class BaseTvDB(object):
 class SearchResult(BaseTvDB):
     """Series search result."""
 
-    def __init__(self, xml_data):
+    def __init__(self, xml_data, client=None):
+        super(SearchResult, self).__init__(client=client)
         self.id = self._elem_value(xml_data, 'id')
         self.imdb_id = self._elem_value(xml_data, 'IMDB_ID')
         self.name = self._elem_value(xml_data, 'SeriesName')
@@ -71,4 +76,5 @@ class TvDB(BaseTvDB):
         """Search for series with the specified title."""
         response = self._get('GetSeries.php', seriesname=title)
         root = ET.fromstring(response.content)
-        return [SearchResult(data) for data in root.findall('./Series')]
+        results = root.findall('./Series')
+        return [SearchResult(data, client=self) for data in results]
