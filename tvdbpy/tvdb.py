@@ -28,6 +28,13 @@ class BaseTvDB(object):
         elem = xml_data.find(elem_name)
         return getattr(elem, 'text', None)
 
+    def _elem_list_value(self, xml_data, elem_name):
+        value = None
+        data = self._elem_value(xml_data, elem_name)
+        if data:
+            value = data[1:-1].split('|')
+        return value
+
     def _get(self, path, **params):
         """Do a GET request to the given path with the specified params."""
         url = urlparse.urljoin(self._base_api_url, path)
@@ -83,20 +90,53 @@ class SearchResult(BaseSeries):
 
 
 class Series(BaseSeries):
+    """Series details."""
 
     def __init__(self, xml_data, client=None):
         super(Series, self).__init__(xml_data, client=client)
         self.runtime = self._elem_value(xml_data, 'Runtime')
         self.status = self._elem_value(xml_data, 'Status')
         self._poster = self._elem_value(xml_data, 'poster')
-        self.genre = []
-        genre_data = self._elem_value(xml_data, 'Genre')
-        if genre_data:
-            self.genre = genre_data[1:-1].split('|')
+        self.actors = self._elem_list_value(xml_data, 'Actors')
+        self.genre = self._elem_list_value(xml_data, 'Genre')
 
     @property
     def poster(self):
         return urlparse.urljoin(self._base_image_url, self._poster)
+
+
+class Episode(BaseTvDB):
+    """Episode details."""
+
+    def __init__(self, xml_data, client=None):
+        super(Episode, self).__init__(client=client)
+        self.id = self._elem_value(xml_data, 'id')
+        self.imdb_id = self._elem_value(xml_data, 'IMDB_ID')
+        self.series_id = self._elem_value(xml_data, 'seriesid')
+        self.number = self._elem_value(xml_data, 'EpisodeNumber')
+        self.season = self._elem_value(xml_data, 'SeasonNumber')
+        self.name = self._elem_value(xml_data, 'EpisodeName')
+        self.overview = self._elem_value(xml_data, 'Overview')
+        self.guest_stars = self._elem_list_value(xml_data, 'GuestStars')
+        self.director = self._elem_value(xml_data, 'Director')
+        self.writer = self._elem_value(xml_data, 'Writer')
+        self.language = self._elem_value(xml_data, 'Language')
+        self._image = self._elem_value(xml_data, 'filename')
+        self._first_aired = self._elem_value(xml_data, 'FirstAired')
+
+    def __str__(self):
+        return "Episode: %s" % self.name
+
+    @property
+    def first_aired(self):
+        res = None
+        if self._first_aired is not None:
+            res = datetime.strptime(self._first_aired, "%Y-%m-%d").date()
+        return res
+
+    @property
+    def image(self):
+        return urlparse.urljoin(self._base_image_url, self._image)
 
 
 class TvDB(BaseTvDB):
@@ -115,10 +155,10 @@ class TvDB(BaseTvDB):
 
     def get_series_by_id(self, series_id):
         """Get Series detail by series id."""
-        series = None
         if self._api_key is None:
             raise APIKeyRequiredError("TvDB API key required.")
 
+        series = None
         path = '%s/series/%s/en.xml' % (self._api_key, series_id)
         response = self._get(path)
         root = ET.fromstring(response.content)
@@ -126,3 +166,17 @@ class TvDB(BaseTvDB):
         if result is not None:
             series = Series(result, client=self)
         return series
+
+    def get_episode_by_id(self, episode_id):
+        """Get Episode detail by episode id."""
+        if self._api_key is None:
+            raise APIKeyRequiredError("TvDB API key required.")
+
+        episode = None
+        path = '%s/episodes/%s/en.xml' % (self._api_key, episode_id)
+        response = self._get(path)
+        root = ET.fromstring(response.content)
+        result = root.find('./Episode')
+        if result is not None:
+            episode = Episode(result, client=self)
+        return episode
