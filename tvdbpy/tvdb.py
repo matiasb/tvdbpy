@@ -7,7 +7,7 @@ from datetime import datetime
 
 import requests
 
-from tvdbpy.errors import APIResponseError
+from tvdbpy.errors import APIKeyRequiredError, APIResponseError
 
 
 class BaseTvDB(object):
@@ -34,17 +34,17 @@ class BaseTvDB(object):
 
         # responses from tvdb are expected to be XML, utf-8 encoded
         content_type = response.headers.get('content-type')
-        if content_type != 'text/xml; charset=utf-8':
+        if 'text/xml' not in content_type:
             raise APIResponseError("Content-type: %s" % content_type)
 
         return response
 
 
-class SearchResult(BaseTvDB):
-    """Series search result."""
+class BaseSeries(BaseTvDB):
+    """Minimum shared details for Series and SearchResult."""
 
     def __init__(self, xml_data, client=None):
-        super(SearchResult, self).__init__(client=client)
+        super(BaseSeries, self).__init__(client=client)
         self.id = self._elem_value(xml_data, 'id')
         self.imdb_id = self._elem_value(xml_data, 'IMDB_ID')
         self.name = self._elem_value(xml_data, 'SeriesName')
@@ -69,8 +69,34 @@ class SearchResult(BaseTvDB):
         return res
 
 
+class SearchResult(BaseSeries):
+    """Series search result."""
+
+
+class Series(BaseSeries):
+
+    def __init__(self, xml_data, client=None):
+        super(Series, self).__init__(xml_data, client=client)
+        genre_data = self._elem_value(xml_data, 'Genre')
+        if genre_data:
+            self.genre = genre_data[1:-1].split('|')
+        else:
+            self.genre = []
+        self.runtime = self._elem_value(xml_data, 'Runtime')
+        self.status = self._elem_value(xml_data, 'Status')
+        self._poster = self._elem_value(xml_data, 'poster')
+
+    @property
+    def poster(self):
+        return urlparse.urljoin(self._base_image_url, self._poster)
+
+
 class TvDB(BaseTvDB):
     """TvDB API client."""
+
+    def __init__(self, api_key=None):
+        super(TvDB, self).__init__(client=None)
+        self._api_key = api_key
 
     def search(self, title):
         """Search for series with the specified title."""
@@ -78,3 +104,17 @@ class TvDB(BaseTvDB):
         root = ET.fromstring(response.content)
         results = root.findall('./Series')
         return [SearchResult(data, client=self) for data in results]
+
+    def get_series_by_id(self, series_id):
+        """Get Series detail by series id."""
+        series = None
+        if self._api_key is None:
+            raise APIKeyRequiredError("TvDB API key required.")
+
+        path = '%s/series/%s/en.xml' % (self._api_key, series_id)
+        response = self._get(path)
+        root = ET.fromstring(response.content)
+        result = root.find('./Series')
+        if result is not None:
+            series = Series(result, client=self)
+        return series

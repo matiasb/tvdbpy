@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Data>
+    <Series>
+        <id>80348</id>
+        <Actors>|Zachary Levi|Yvonne Strahovski|Joshua Gomez|Adam Baldwin|</Actors>
+        <Airs_DayOfWeek>Friday</Airs_DayOfWeek>
+        <Airs_Time>8:00 PM</Airs_Time>
+        <ContentRating>TV-PG</ContentRating>
+        <FirstAired>2007-09-24</FirstAired>
+        <Genre>|Action|Adventure|Comedy|Drama|</Genre>
+        <IMDB_ID>tt0934814</IMDB_ID>
+        <Language>en</Language>
+        <Network>NBC</Network>
+        <NetworkID />
+        <Overview>Chuck Bartowski, ace computer geek at Buy More, is not in his...</Overview>
+        <Rating>8.8</Rating>
+        <RatingCount>818</RatingCount>
+        <Runtime>60</Runtime>
+        <SeriesID>68724</SeriesID>
+        <SeriesName>Chuck</SeriesName>
+        <Status>Ended</Status>
+        <added />
+        <addedBy />
+        <banner>graphical/80348-g32.jpg</banner>
+        <fanart>fanart/original/80348-48.jpg</fanart>
+        <lastupdated>1369940177</lastupdated>
+        <poster>posters/80348-16.jpg</poster>
+        <zap2it_id>EP00930779</zap2it_id>
+    </Series>
+</Data>

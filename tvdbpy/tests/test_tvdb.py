@@ -10,8 +10,8 @@ import mock
 import requests
 
 from tvdbpy import TvDB
-from tvdbpy.errors import APIResponseError
-from tvdbpy.tvdb import SearchResult
+from tvdbpy.errors import APIKeyRequiredError, APIResponseError
+from tvdbpy.tvdb import SearchResult, Series
 
 
 TESTS_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -32,9 +32,10 @@ class BaseTestCase(unittest.TestCase):
         self.requests = patcher.start()
         self.addCleanup(patcher.stop)
 
-    def response(self, url=None, method='GET', status_code=200, filename=None):
+    def response(self, url=None, method='GET', status_code=200, filename=None,
+                 content_type='text/xml'):
         """Set a custom response from a file."""
-        data = None
+        data = ''
         if filename is not None:
             path = os.path.join(TESTS_DIR, 'xml', filename)
             with codecs.open(path, 'r', 'utf-8') as xml:
@@ -42,17 +43,38 @@ class BaseTestCase(unittest.TestCase):
 
         response = requests.Response()
         response.status_code = status_code
-
-        if data is not None:
-            response.encoding = 'utf-8'
-            response.headers['content-type'] = 'text/xml; charset=utf-8'
-            response.raw = RequestsBytesIO(data.encode('utf-8'))
+        response.headers['content-type'] = content_type
+        response.encoding = 'utf-8'
+        response.raw = RequestsBytesIO(data.encode('utf-8'))
 
         requests_method = getattr(self.requests, method.lower())
         setattr(requests_method, 'return_value', response)
 
 
-class TvDBSearchResultTestCase(BaseTestCase):
+class BaseSeriesMixin(object):
+    """Shared tests between SearchResult and Series."""
+
+    def test_base_attrs(self):
+        expected = ['id', 'imdb_id', 'name', 'overview', 'language',
+                    'first_aired', 'network', 'banner']
+        for attr in expected:
+            unexpected = object()
+            value = getattr(self.result, attr, unexpected)
+            self.assertNotEqual(value, unexpected)
+
+    def test_base_values(self):
+        self.assertEqual(self.result.id, '80348')
+        self.assertEqual(self.result.name, 'Chuck')
+        self.assertEqual(self.result.first_aired, date(2007, 9, 24))
+        self.assertEqual(
+            self.result.banner,
+            'http://thetvdb.com/banners/graphical/80348-g32.jpg')
+
+    def test_client_set(self):
+        self.assertIsNotNone(self.result._client)
+
+
+class TvDBSearchResultTestCase(BaseTestCase, BaseSeriesMixin):
     """Test search result instance."""
 
     def setUp(self):
@@ -66,7 +88,7 @@ class TvDBSearchResultTestCase(BaseTestCase):
     def test_search_result_from_xml(self):
         xml = """
             <Series>
-                <seriesid>80348</seriesid>
+                <id>80348</id>
                 <SeriesName>Chuck</SeriesName>
                 <banner>graphical/80348-g32.jpg</banner>
                 <Overview>description</Overview>
@@ -74,8 +96,8 @@ class TvDBSearchResultTestCase(BaseTestCase):
                 <IMDB_ID>tt0934814</IMDB_ID>
             </Series>"""
         result = SearchResult(ET.fromstring(xml))
-        self.assertEqual(self.result.id, '80348')
-        self.assertEqual(self.result.name, 'Chuck')
+        self.assertEqual(result.id, '80348')
+        self.assertEqual(result.name, 'Chuck')
         # when not available, field is None
         self.assertIsNone(result.network)
         # client is not set since result was not generated from search
@@ -84,31 +106,54 @@ class TvDBSearchResultTestCase(BaseTestCase):
     def test_is_search_result(self):
         self.assertIsInstance(self.result, SearchResult)
 
-    def test_search_result_attrs(self):
-        expected = ['id', 'imdb_id', 'name', 'overview', 'language',
-                    'first_aired', 'network', 'banner']
-        for attr in expected:
-            unexpected = object()
-            value = getattr(self.result, attr, unexpected)
-            self.assertNotEqual(value, unexpected)
 
-    def test_search_result_values(self):
-        self.assertEqual(self.result.id, '80348')
-        self.assertEqual(self.result.name, 'Chuck')
-        self.assertEqual(self.result.first_aired, date(2007, 9, 24))
-        self.assertEqual(
-            self.result.banner,
-            'http://thetvdb.com/banners/graphical/80348-g32.jpg')
-
-    def test_search_result_client_set(self):
-        self.assertIsNotNone(self.result._client)
-
-
-class TvDBTestCase(BaseTestCase):
-    """TvDB client test case."""
+class TvDBSeriesTestCase(BaseTestCase, BaseSeriesMixin):
 
     def setUp(self):
-        super(TvDBTestCase, self).setUp()
+        super(TvDBSeriesTestCase, self).setUp()
+        self.response(
+            url='http://thetvdb.com/api/123456789/series/80348/en.xml',
+            filename='series.xml')
+        tvdb = TvDB(api_key='123456789')
+        self.result = tvdb.get_series_by_id('80348')
+
+    def test_series_from_xml(self):
+        xml = """
+            <Series>
+                <id>80348</id>
+                <SeriesName>Chuck</SeriesName>
+                <banner>graphical/80348-g32.jpg</banner>
+                <poster>graphical/80348.jpg</poster>
+                <Overview>description</Overview>
+                <FirstAired>2007-09-24</FirstAired>
+                <IMDB_ID>tt0934814</IMDB_ID>
+            </Series>"""
+        result = Series(ET.fromstring(xml))
+        self.assertEqual(result.id, '80348')
+        self.assertEqual(result.name, 'Chuck')
+        self.assertEqual(
+            result.poster,
+            'http://thetvdb.com/banners/graphical/80348.jpg')
+        # when not available, field is None
+        self.assertIsNone(result.network)
+        # client is not set since result was not generated from search
+        self.assertIsNone(result._client)
+
+    def test_is_series(self):
+        self.assertIsInstance(self.result, Series)
+
+    def test_extra_values(self):
+        self.assertEqual(self.result.status, 'Ended')
+        self.assertEqual(self.result.runtime, '60')
+        self.assertEqual(
+            self.result.genre, ['Action', 'Adventure', 'Comedy' , 'Drama'])
+
+
+class AnonymousTvDBTestCase(BaseTestCase):
+    """TvDB client without API key test case."""
+
+    def setUp(self):
+        super(AnonymousTvDBTestCase, self).setUp()
         self.tvdb = TvDB()
 
     def test_response_error(self):
@@ -118,14 +163,14 @@ class TvDBTestCase(BaseTestCase):
             results = self.tvdb.search('something')
 
     def test_response_unexpected_content_type(self):
-        self.response(status_code=200)
+        self.response(status_code=200, content_type='text/plain')
 
         with self.assertRaises(APIResponseError):
             results = self.tvdb.search('something')
 
     def test_search_no_results(self):
         self.response(url='http://thetvdb.com/api/GetSeries.php',
-                      filename='getseries_no_results.xml')
+                      filename='empty.xml')
 
         results = self.tvdb.search('nothing')
 
@@ -144,3 +189,29 @@ class TvDBTestCase(BaseTestCase):
             'http://thetvdb.com/api/GetSeries.php',
             params={'seriesname': 'chuck'})
         self.assertEqual(len(results), 7)
+
+    def test_get_series_by_id_requires_api_key(self):
+        with self.assertRaises(APIKeyRequiredError):
+            self.tvdb.get_series_by_id(1111)
+
+
+class TvDBTestCase(BaseTestCase):
+    """TvDB client with API key test case."""
+
+    def setUp(self):
+        super(TvDBTestCase, self).setUp()
+        self.tvdb = TvDB(api_key='123456789')
+
+    def test_get_series_by_id(self):
+        self.response(
+            url='http://thetvdb.com/api/123456789/series/321/en.xml',
+            filename='series.xml')
+        result = self.tvdb.get_series_by_id(321)
+        self.assertIsInstance(result, Series)
+
+    def test_get_series_by_id_missing_data(self):
+        self.response(
+            url='http://thetvdb.com/api/123456789/series/321/en.xml',
+            filename='empty.xml')
+        result = self.tvdb.get_series_by_id(321)
+        self.assertIsNone(result)
