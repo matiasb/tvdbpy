@@ -32,7 +32,7 @@ class BaseTestCase(unittest.TestCase):
     """Base test case."""
 
     def setUp(self):
-        patcher = mock.patch('tvdbpy.tvdb.requests')
+        patcher = mock.patch('tvdbpy.helpers.requests')
         self.requests = patcher.start()
         self.addCleanup(patcher.stop)
 

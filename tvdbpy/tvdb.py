@@ -12,43 +12,7 @@ from tvdbpy.errors import (
     APIKeyRequiredError,
     APIResponseError,
 )
-
-
-class BaseTvDB(object):
-    """Base class for TvDB objects using the API."""
-
-    _base_api_url = 'http://thetvdb.com/api/'
-    _base_image_url = 'http://thetvdb.com/banners/'
-
-    def __init__(self, client=None):
-        super(BaseTvDB, self).__init__()
-        self._client = client
-
-    def _elem_value(self, xml_data, elem_name):
-        elem = xml_data.find(elem_name)
-        return getattr(elem, 'text', None)
-
-    def _elem_list_value(self, xml_data, elem_name):
-        value = None
-        data = self._elem_value(xml_data, elem_name)
-        if data:
-            value = data[1:-1].split('|')
-        return value
-
-    def _get(self, path, **params):
-        """Do a GET request to the given path with the specified params."""
-        url = urlparse.urljoin(self._base_api_url, path)
-        response = requests.get(url, params=params)
-
-        if not response.ok:
-            raise APIResponseError("Status code: %s" % response.status_code)
-
-        # responses from tvdb are expected to be XML, utf-8 encoded
-        content_type = response.headers.get('content-type')
-        if 'text/xml' not in content_type:
-            raise APIResponseError("Content-type: %s" % content_type)
-
-        return response
+from tvdbpy.helpers import BaseTvDB, api_key_required
 
 
 class BaseSeries(BaseTvDB):
@@ -153,11 +117,9 @@ class TvDB(BaseTvDB):
         results = root.findall('./Series')
         return [SearchResult(data, client=self) for data in results]
 
+    @api_key_required
     def get_series_by_id(self, series_id):
         """Get Series detail by series id."""
-        if self._api_key is None:
-            raise APIKeyRequiredError("TvDB API key required.")
-
         series = None
         path = '%s/series/%s/en.xml' % (self._api_key, series_id)
         response = self._get(path)
@@ -167,11 +129,9 @@ class TvDB(BaseTvDB):
             series = Series(result, client=self)
         return series
 
+    @api_key_required
     def get_episode_by_id(self, episode_id):
         """Get Episode detail by episode id."""
-        if self._api_key is None:
-            raise APIKeyRequiredError("TvDB API key required.")
-
         episode = None
         path = '%s/episodes/%s/en.xml' % (self._api_key, episode_id)
         response = self._get(path)
