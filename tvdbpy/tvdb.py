@@ -7,7 +7,11 @@ from datetime import datetime
 
 import requests
 
-from tvdbpy.errors import APIKeyRequiredError, APIResponseError
+from tvdbpy.errors import (
+    APIClientNotAvailableError,
+    APIKeyRequiredError,
+    APIResponseError,
+)
 
 
 class BaseTvDB(object):
@@ -71,6 +75,11 @@ class BaseSeries(BaseTvDB):
 
 class SearchResult(BaseSeries):
     """Series search result."""
+
+    def get_series(self):
+        if self._client is None:
+            raise APIClientNotAvailableError("Missing TvDB client")
+        return self._client.get_series_by_id(self.id)
 
 
 class Series(BaseSeries):

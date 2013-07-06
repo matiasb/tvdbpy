@@ -10,7 +10,11 @@ import mock
 import requests
 
 from tvdbpy import TvDB
-from tvdbpy.errors import APIKeyRequiredError, APIResponseError
+from tvdbpy.errors import (
+    APIClientNotAvailableError,
+    APIKeyRequiredError,
+    APIResponseError,
+)
 from tvdbpy.tvdb import SearchResult, Series
 
 
@@ -81,7 +85,7 @@ class TvDBSearchResultTestCase(BaseTestCase, BaseSeriesMixin):
         super(TvDBSearchResultTestCase, self).setUp()
         self.response(url='http://thetvdb.com/api/GetSeries.php',
                       filename='getseries.xml')
-        tvdb = TvDB()
+        tvdb = TvDB(api_key='123456789')
         results = tvdb.search('chuck')
         self.result = results[0]
 
@@ -105,6 +109,25 @@ class TvDBSearchResultTestCase(BaseTestCase, BaseSeriesMixin):
 
     def test_is_search_result(self):
         self.assertIsInstance(self.result, SearchResult)
+
+    def test_from_xml_get_series(self):
+        xml = """
+            <Series>
+                <id>80348</id>
+                <SeriesName>Chuck</SeriesName>
+                <banner>graphical/80348-g32.jpg</banner>
+                <Overview>description</Overview>
+                <FirstAired>2007-09-24</FirstAired>
+                <IMDB_ID>tt0934814</IMDB_ID>
+            </Series>"""
+        result = SearchResult(ET.fromstring(xml))
+        self.assertRaises(APIClientNotAvailableError, result.get_series)
+
+    def test_get_series(self):
+        self.response(
+            url='http://thetvdb.com/api/123456789/series/80348/en.xml',
+            filename='series.xml')
+        result = self.result.get_series()
 
 
 class TvDBSeriesTestCase(BaseTestCase, BaseSeriesMixin):
