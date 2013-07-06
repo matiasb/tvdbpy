@@ -1,7 +1,9 @@
 import codecs
 import os
 import unittest
+import xml.etree.ElementTree as ET
 
+from datetime import date
 from io import BytesIO
 
 import mock
@@ -9,6 +11,7 @@ import requests
 
 from tvdbpy import TvDB
 from tvdbpy.errors import APIResponseError
+from tvdbpy.tvdb import SearchResult
 
 
 TESTS_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -49,6 +52,53 @@ class BaseTestCase(unittest.TestCase):
         setattr(requests_method, 'return_value', response)
 
 
+class TvDBSearchResultTestCase(BaseTestCase):
+    """Test search result instance."""
+
+    def setUp(self):
+        super(TvDBSearchResultTestCase, self).setUp()
+        self.response(url='http://thetvdb.com/api/GetSeries.php',
+                      filename='getseries.xml')
+        tvdb = TvDB()
+        results = tvdb.search('chuck')
+        self.result = results[0]
+
+    def test_search_result_from_xml(self):
+        xml = """
+            <Series>
+                <seriesid>80348</seriesid>
+                <SeriesName>Chuck</SeriesName>
+                <banner>graphical/80348-g32.jpg</banner>
+                <Overview>description</Overview>
+                <FirstAired>2007-09-24</FirstAired>
+                <IMDB_ID>tt0934814</IMDB_ID>
+            </Series>"""
+        result = SearchResult(ET.fromstring(xml))
+        self.assertEqual(self.result.id, '80348')
+        self.assertEqual(self.result.name, 'Chuck')
+        # when not available, field is None
+        self.assertIsNone(result.network)
+
+    def test_is_search_result(self):
+        self.assertIsInstance(self.result, SearchResult)
+
+    def test_search_result_attrs(self):
+        expected = ['id', 'imdb_id', 'name', 'overview', 'language',
+                    'first_aired', 'network', 'banner']
+        for attr in expected:
+            unexpected = object()
+            value = getattr(self.result, attr, unexpected)
+            self.assertNotEqual(value, unexpected)
+
+    def test_search_result_values(self):
+        self.assertEqual(self.result.id, '80348')
+        self.assertEqual(self.result.name, 'Chuck')
+        self.assertEqual(self.result.first_aired, date(2007, 9, 24))
+        self.assertEqual(
+            self.result.banner,
+            'http://thetvdb.com/banners/graphical/80348-g32.jpg')
+
+
 class TvDBTestCase(BaseTestCase):
     """TvDB client test case."""
 
@@ -85,7 +135,7 @@ class TvDBTestCase(BaseTestCase):
 
         results = self.tvdb.search('chuck')
 
-        self.assertEqual(len(results), 7)
         self.requests.get.assert_called_once_with(
             'http://thetvdb.com/api/GetSeries.php',
             params={'seriesname': 'chuck'})
+        self.assertEqual(len(results), 7)
