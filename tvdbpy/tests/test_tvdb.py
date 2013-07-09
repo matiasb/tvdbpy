@@ -271,6 +271,10 @@ class AnonymousTvDBTestCase(BaseTestCase):
         with self.assertRaises(APIKeyRequiredError):
             self.tvdb.get_episode_by_id(1111)
 
+    def test_get_episode_requires_api_key(self):
+        with self.assertRaises(APIKeyRequiredError):
+            self.tvdb.get_episode(80348, 1, 1)
+
 
 class TvDBTestCase(BaseTestCase):
     """TvDB client with API key test case."""
@@ -311,3 +315,21 @@ class TvDBTestCase(BaseTestCase):
         self.assertIsNone(result)
         self.requests.get.assert_called_once_with(
             'http://thetvdb.com/api/123456789/episodes/321/en.xml', params={})
+
+    def test_get_episode(self):
+        self.response(filename='episode.xml')
+        result = self.tvdb.get_episode(80348, 1, 1)
+
+        self.assertIsInstance(result, Episode)
+        self.requests.get.assert_called_once_with(
+            'http://thetvdb.com/api/123456789/series/80348/default/1/1/en.xml',
+            params={})
+
+    def test_get_episode_missing_data(self):
+        self.response(filename='empty.xml')
+        result = self.tvdb.get_episode(80348, 6, 1)
+
+        self.assertIsNone(result)
+        self.requests.get.assert_called_once_with(
+            'http://thetvdb.com/api/123456789/series/80348/default/6/1/en.xml',
+            params={})
