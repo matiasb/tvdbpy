@@ -110,12 +110,25 @@ class TvDB(BaseTvDB):
         super(TvDB, self).__init__(client=None)
         self._api_key = api_key
 
+    def _parse_response(self, response, cls, key, multiple=False):
+        """Parse XML response and return expected cls instance(s)."""
+        result = None
+        root = ET.fromstring(response.content)
+        if multiple:
+            data = root.findall(key)
+            if data is not None:
+                result = [cls(d, client=self) for d in data]
+        else:
+            data = root.find(key)
+            if data is not None:
+                result = cls(data, client=self)
+        return result
+
     def search(self, title):
         """Search for series with the specified title."""
         response = self._get('GetSeries.php', seriesname=title)
-        root = ET.fromstring(response.content)
-        results = root.findall('./Series')
-        return [SearchResult(data, client=self) for data in results]
+        return self._parse_response(
+            response, SearchResult, './Series', multiple=True)
 
     @api_key_required
     def get_series_by_id(self, series_id):
@@ -123,20 +136,21 @@ class TvDB(BaseTvDB):
         series = None
         path = '%s/series/%s/en.xml' % (self._api_key, series_id)
         response = self._get(path)
-        root = ET.fromstring(response.content)
-        result = root.find('./Series')
-        if result is not None:
-            series = Series(result, client=self)
-        return series
+        return self._parse_response(response, Series, './Series')
 
     @api_key_required
     def get_episode_by_id(self, episode_id):
-        """Get Episode detail by episode id."""
+        """Get Episode details by episode id."""
         episode = None
         path = '%s/episodes/%s/en.xml' % (self._api_key, episode_id)
         response = self._get(path)
-        root = ET.fromstring(response.content)
-        result = root.find('./Episode')
-        if result is not None:
-            episode = Episode(result, client=self)
-        return episode
+        return self._parse_response(response, Episode, './Episode')
+
+    @api_key_required
+    def get_episode(self, series_id, season, number):
+        """Get Episode details by season/number."""
+        episode = None
+        path = '%s/series/%s/default/%s/%s/en.xml' % (
+            self._api_key, series_id, season, number)
+        response = self._get(path)
+        return self._parse_response(response, Episode, './Episode')
