@@ -133,7 +133,6 @@ class TvDB(BaseTvDB):
     @api_key_required
     def get_series_by_id(self, series_id):
         """Get Series detail by series id."""
-        series = None
         path = '%s/series/%s/en.xml' % (self._api_key, series_id)
         response = self._get(path)
         return self._parse_response(response, Series, './Series')
@@ -141,7 +140,6 @@ class TvDB(BaseTvDB):
     @api_key_required
     def get_episode_by_id(self, episode_id):
         """Get Episode details by episode id."""
-        episode = None
         path = '%s/episodes/%s/en.xml' % (self._api_key, episode_id)
         response = self._get(path)
         return self._parse_response(response, Episode, './Episode')
@@ -149,7 +147,6 @@ class TvDB(BaseTvDB):
     @api_key_required
     def get_episode(self, series_id, season, number):
         """Get Episode details by season/number."""
-        episode = None
         path = '%s/series/%s/default/%s/%s/en.xml' % (
             self._api_key, series_id, season, number)
         response = self._get(path)
