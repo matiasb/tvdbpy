@@ -1,7 +1,6 @@
 from __future__ import unicode_literals
 
 import urlparse
-import xml.etree.ElementTree as ET
 
 from datetime import datetime
 
@@ -110,44 +109,47 @@ class TvDB(BaseTvDB):
         super(TvDB, self).__init__(client=None)
         self._api_key = api_key
 
-    def _parse_response(self, response, cls, key, multiple=False):
-        """Parse XML response and return expected cls instance(s)."""
+    def _parse_entry(self, response, cls, key):
+        """Parse XML response and return expected cls instance."""
         result = None
-        root = ET.fromstring(response.content)
-        if multiple:
-            data = root.findall(key)
-            if data is not None:
-                result = [cls(d, client=self) for d in data]
-        else:
-            data = root.find(key)
-            if data is not None:
-                result = cls(data, client=self)
+        data = response.find(key)
+        if data is not None:
+            result = cls(data, client=self)
+        return result
+
+    def _parse_multiple_entries(self, response, cls, key):
+        """Parse XML response and return expected cls instances."""
+        result = None
+        data = response.findall(key)
+        if data is not None:
+            result = [cls(d, client=self) for d in data]
         return result
 
     def search(self, title):
         """Search for series with the specified title."""
-        response = self._get('GetSeries.php', seriesname=title)
-        return self._parse_response(
-            response, SearchResult, './Series', multiple=True)
+        response = self._get_xml_data('GetSeries.php', seriesname=title)
+        return self._parse_multiple_entries(response, SearchResult, './Series')
 
     @api_key_required
     def get_series_by_id(self, series_id):
         """Get Series detail by series id."""
+        series = None
         path = '%s/series/%s/en.xml' % (self._api_key, series_id)
-        response = self._get(path)
-        return self._parse_response(response, Series, './Series')
+        response = self._get_xml_data(path)
+        series = self._parse_entry(response, Series, './Series')
+        return series
 
     @api_key_required
     def get_episode_by_id(self, episode_id):
         """Get Episode details by episode id."""
         path = '%s/episodes/%s/en.xml' % (self._api_key, episode_id)
-        response = self._get(path)
-        return self._parse_response(response, Episode, './Episode')
+        response = self._get_xml_data(path)
+        return self._parse_entry(response, Episode, './Episode')
 
     @api_key_required
     def get_episode(self, series_id, season, number):
         """Get Episode details by season/number."""
         path = '%s/series/%s/default/%s/%s/en.xml' % (
             self._api_key, series_id, season, number)
-        response = self._get(path)
-        return self._parse_response(response, Episode, './Episode')
+        response = self._get_xml_data(path)
+        return self._parse_entry(response, Episode, './Episode')

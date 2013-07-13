@@ -1,4 +1,5 @@
 import urlparse
+import xml.etree.ElementTree as ET
 
 from functools import wraps
 
@@ -39,7 +40,7 @@ class BaseTvDB(object):
             value = data[1:-1].split('|')
         return value
 
-    def _get(self, path, **params):
+    def _get(self, path, content_type, **params):
         """Do a GET request to the given path with the specified params."""
         url = urlparse.urljoin(self._base_api_url, path)
         response = requests.get(url, params=params)
@@ -48,8 +49,14 @@ class BaseTvDB(object):
             raise APIResponseError("Status code: %s" % response.status_code)
 
         # responses from tvdb are expected to be XML, utf-8 encoded
-        content_type = response.headers.get('content-type')
-        if 'text/xml' not in content_type:
-            raise APIResponseError("Content-type: %s" % content_type)
+        response_content_type = response.headers.get('content-type')
+        if content_type not in response_content_type:
+            raise APIResponseError("Content-type: %s" % response_content_type)
 
         return response
+
+    def _get_xml_data(self, path, **params):
+        """Do a GET request expecting XML data."""
+        response = self._get(path, 'text/xml', **params)
+        xml_data = ET.fromstring(response.content)
+        return xml_data
