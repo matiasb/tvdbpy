@@ -1,7 +1,9 @@
 import urlparse
 import xml.etree.ElementTree as ET
+import zipfile
 
 from functools import wraps
+from StringIO import StringIO
 
 import requests
 
@@ -29,9 +31,12 @@ class BaseTvDB(object):
         super(BaseTvDB, self).__init__()
         self._client = client
 
-    def _elem_value(self, xml_data, elem_name):
+    def _elem_value(self, xml_data, elem_name, cast=None):
         elem = xml_data.find(elem_name)
-        return getattr(elem, 'text', None)
+        value = getattr(elem, 'text', None)
+        if cast is not None and value is not None:
+            value = cast(value)
+        return value
 
     def _elem_list_value(self, xml_data, elem_name):
         value = None
@@ -60,3 +65,27 @@ class BaseTvDB(object):
         response = self._get(path, 'text/xml', **params)
         xml_data = ET.fromstring(response.content)
         return xml_data
+
+    def _get_compressed_data(self, path):
+        """Do a GET request expecting a zipped file; return a ZipFile."""
+        response = self._get(path, 'application/zip')
+
+        compressed_data = StringIO(response.content)
+        zip_file = zipfile.ZipFile(compressed_data)
+        return zip_file
+
+    def _parse_entry(self, response, cls, key):
+        """Parse XML response and return expected cls instance."""
+        result = None
+        data = response.find(key)
+        if data is not None:
+            result = cls(data, client=self)
+        return result
+
+    def _parse_multiple_entries(self, response, cls, key):
+        """Parse XML response and return expected cls instances."""
+        result = None
+        data = response.findall(key)
+        if data is not None:
+            result = [cls(d, client=self) for d in data]
+        return result

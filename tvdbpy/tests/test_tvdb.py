@@ -41,15 +41,20 @@ class BaseTestCase(unittest.TestCase):
         """Set a custom response from a file."""
         data = ''
         if filename is not None:
-            path = os.path.join(TESTS_DIR, 'xml', filename)
-            with codecs.open(path, 'r', 'utf-8') as xml:
-                data = xml.read()
+            path = os.path.join(TESTS_DIR, 'testdata', filename)
+            if content_type.startswith('text/'):
+                with codecs.open(path, 'r', 'utf-8') as f:
+                    data = f.read()
+                    data = data.encode('utf-8')
+            else:
+                with open(path, 'rb') as f:
+                    data = f.read()
 
         response = requests.Response()
         response.status_code = status_code
         response.headers['content-type'] = content_type
         response.encoding = 'utf-8'
-        response.raw = RequestsBytesIO(data.encode('utf-8'))
+        response.raw = RequestsBytesIO(data)
 
         requests_method = getattr(self.requests, method.lower())
         setattr(requests_method, 'return_value', response)
@@ -210,6 +215,8 @@ class TvDBEpisodeTestCase(BaseTestCase):
             <Episode>
                 <id>332179</id>
                 <EpisodeName>Testing</EpisodeName>
+                <EpisodeNumber>1</EpisodeNumber>
+                <SeasonNumber>2</SeasonNumber>
                 <Overview>description</Overview>
                 <FirstAired>2007-09-24</FirstAired>
                 <IMDB_ID>tt0934814</IMDB_ID>
@@ -218,7 +225,8 @@ class TvDBEpisodeTestCase(BaseTestCase):
         self.assertEqual(result.id, '332179')
         self.assertEqual(result.name, 'Testing')
         # when not available, field is None
-        self.assertIsNone(result.season)
+        self.assertEqual(result.number, 1)
+        self.assertEqual(result.season, 2)
         # client is not set since result was not generated from API client
         self.assertIsNone(result._client)
 
@@ -298,6 +306,18 @@ class TvDBTestCase(BaseTestCase):
         self.assertIsNone(result)
         self.requests.get.assert_called_once_with(
             'http://thetvdb.com/api/123456789/series/321/en.xml', params={})
+
+    def test_get_series_by_id_full_data(self):
+        self.response(filename='80348.zip', content_type='application/zip')
+        result = self.tvdb.get_series_by_id(80348, full_record=True)
+
+        self.assertIsInstance(result, Series)
+        self.requests.get.assert_called_once_with(
+            'http://thetvdb.com/api/123456789/series/80348/all/en.zip',
+            params={})
+        # check episodes were loaded
+        self.assertEqual(len(result.seasons), 6)
+        self.assertEqual(len(result.seasons[1]), 13)
 
     def test_get_episode_by_id(self):
         self.response(filename='episode.xml')

@@ -1,12 +1,15 @@
 
+class TvDBException(Exception):
+    """Common base exception for TvDBpy."""
 
-class APIClientNotAvailableError(Exception):
+
+class APIClientNotAvailableError(TvDBException):
     """TvDB API client not available."""
 
 
-class APIKeyRequiredError(Exception):
+class APIKeyRequiredError(TvDBException):
     """TvDB API key required."""
 
 
-class APIResponseError(Exception):
+class APIResponseError(TvDBException):
     """Unexpected response from the TvDB API."""

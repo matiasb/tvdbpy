@@ -1,7 +1,9 @@
 from __future__ import unicode_literals
 
 import urlparse
+import xml.etree.ElementTree as ET
 
+from collections import defaultdict
 from datetime import datetime
 
 import requests
@@ -33,10 +35,12 @@ class BaseSeries(BaseTvDB):
 
     @property
     def banner(self):
+        """Return series banner url."""
         return urlparse.urljoin(self._base_image_url, self._banner)
 
     @property
     def first_aired(self):
+        """Return series first aired date."""
         res = None
         if self._first_aired is not None:
             res = datetime.strptime(self._first_aired, "%Y-%m-%d").date()
@@ -46,10 +50,10 @@ class BaseSeries(BaseTvDB):
 class SearchResult(BaseSeries):
     """Series search result."""
 
-    def get_series(self):
+    def get_series(self, full_record=False):
         if self._client is None:
             raise APIClientNotAvailableError("Missing TvDB client")
-        return self._client.get_series_by_id(self.id)
+        return self._client.get_series_by_id(self.id, full_record=full_record)
 
 
 class Series(BaseSeries):
@@ -62,22 +66,51 @@ class Series(BaseSeries):
         self._poster = self._elem_value(xml_data, 'poster')
         self.actors = self._elem_list_value(xml_data, 'Actors')
         self.genre = self._elem_list_value(xml_data, 'Genre')
+        self._seasons = None
+
+    def _load_episodes(self, data=None):
+        # assert client is not None
+        if data is None:
+            data = self._client._get_series_full_data(self.id)
+        episodes = self._client._parse_multiple_entries(data, Episode, './Episode')
+        self._seasons = defaultdict(dict)
+        for e in episodes:
+            # need to set series into Episode
+            e._series = self
+            self._seasons[e.season][e.number] = e
 
     @property
     def poster(self):
+        """Return series poster url."""
         return urlparse.urljoin(self._base_image_url, self._poster)
+
+    @property
+    def seasons(self):
+        """Return all episodes details."""
+        if self._seasons is None:
+            self._load_episodes()
+        return self._seasons
+
+    def get_episode(self, season, number):
+        """Return episode details."""
+        if self._episodes:
+            episode = self._seasons.get(season, {}).get(number)
+        else:
+            episode = self._client.get_episode(self.id, season, number)
+        return episode
 
 
 class Episode(BaseTvDB):
     """Episode details."""
 
-    def __init__(self, xml_data, client=None):
+    def __init__(self, xml_data, series=None, client=None):
         super(Episode, self).__init__(client=client)
+        self._series = series
         self.id = self._elem_value(xml_data, 'id')
         self.imdb_id = self._elem_value(xml_data, 'IMDB_ID')
         self.series_id = self._elem_value(xml_data, 'seriesid')
-        self.number = self._elem_value(xml_data, 'EpisodeNumber')
-        self.season = self._elem_value(xml_data, 'SeasonNumber')
+        self.number = self._elem_value(xml_data, 'EpisodeNumber', cast=int)
+        self.season = self._elem_value(xml_data, 'SeasonNumber', cast=int)
         self.name = self._elem_value(xml_data, 'EpisodeName')
         self.overview = self._elem_value(xml_data, 'Overview')
         self.guest_stars = self._elem_list_value(xml_data, 'GuestStars')
@@ -91,7 +124,15 @@ class Episode(BaseTvDB):
         return "Episode: %s" % self.name
 
     @property
+    def series(self):
+        """Return episode related series."""
+        if self._series is None:
+            self._series = self._client.get_series_by_id(self.series_id)
+        return self._series
+
+    @property
     def first_aired(self):
+        """Return episode first aired date."""
         res = None
         if self._first_aired is not None:
             res = datetime.strptime(self._first_aired, "%Y-%m-%d").date()
@@ -99,6 +140,7 @@ class Episode(BaseTvDB):
 
     @property
     def image(self):
+        """Return episode image url."""
         return urlparse.urljoin(self._base_image_url, self._image)
 
 
@@ -109,21 +151,20 @@ class TvDB(BaseTvDB):
         super(TvDB, self).__init__(client=None)
         self._api_key = api_key
 
-    def _parse_entry(self, response, cls, key):
-        """Parse XML response and return expected cls instance."""
-        result = None
-        data = response.find(key)
-        if data is not None:
-            result = cls(data, client=self)
-        return result
+    def _get_series_full_data(self, series_id):
+        """Return full series XML data."""
+        path = '%s/series/%s/all/en.zip' % (self._api_key, series_id)
+        response = self._get_compressed_data(path)
+        xml_file = response.read('en.xml')
+        data = ET.fromstring(xml_file)
+        return data
 
-    def _parse_multiple_entries(self, response, cls, key):
-        """Parse XML response and return expected cls instances."""
-        result = None
-        data = response.findall(key)
-        if data is not None:
-            result = [cls(d, client=self) for d in data]
-        return result
+    def _parse_full_series(self, data):
+        """Parse XML response and return expected cls instance(s)."""
+        series = self._parse_entry(data, Series, './Series')
+        if series:
+            series._load_episodes(data)
+        return series
 
     def search(self, title):
         """Search for series with the specified title."""
@@ -131,12 +172,15 @@ class TvDB(BaseTvDB):
         return self._parse_multiple_entries(response, SearchResult, './Series')
 
     @api_key_required
-    def get_series_by_id(self, series_id):
+    def get_series_by_id(self, series_id, full_record=False):
         """Get Series detail by series id."""
-        series = None
-        path = '%s/series/%s/en.xml' % (self._api_key, series_id)
-        response = self._get_xml_data(path)
-        series = self._parse_entry(response, Series, './Series')
+        if full_record:
+            data = self._get_series_full_data(series_id)
+            series = self._parse_full_series(data)
+        else:
+            path = '%s/series/%s/en.xml' % (self._api_key, series_id)
+            response = self._get_xml_data(path)
+            series = self._parse_entry(response, Series, './Series')
         return series
 
     @api_key_required
