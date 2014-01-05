@@ -233,6 +233,14 @@ class TvDBEpisodeTestCase(BaseTestCase):
     def test_is_episode(self):
         self.assertIsInstance(self.result, Episode)
 
+    def test_get_series(self):
+        self.response(filename='series.xml')
+        result = self.result.series
+
+        self.assertIsInstance(result, Series)
+        self.requests.get.assert_called_with(
+            'http://thetvdb.com/api/123456789/series/80348/en.xml', params={})
+
 
 class AnonymousTvDBTestCase(BaseTestCase):
     """TvDB client without API key test case."""
@@ -245,13 +253,13 @@ class AnonymousTvDBTestCase(BaseTestCase):
         self.response(status_code=404)
 
         with self.assertRaises(APIResponseError):
-            results = self.tvdb.search('something')
+            self.tvdb.search('something')
 
     def test_response_unexpected_content_type(self):
         self.response(status_code=200, content_type='text/plain')
 
         with self.assertRaises(APIResponseError):
-            results = self.tvdb.search('something')
+            self.tvdb.search('something')
 
     def test_search_no_results(self):
         self.response(filename='empty.xml')
