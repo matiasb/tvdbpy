@@ -35,7 +35,10 @@ class BaseTvDB(object):
         elem = xml_data.find(elem_name)
         value = getattr(elem, 'text', None)
         if cast is not None and value is not None:
-            value = cast(value)
+            try:
+                value = cast(value)
+            except ValueError:
+                value = None
         return value
 
     def _elem_list_value(self, xml_data, elem_name):

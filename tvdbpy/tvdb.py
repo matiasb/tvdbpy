@@ -6,12 +6,9 @@ import xml.etree.ElementTree as ET
 from collections import defaultdict
 from datetime import datetime
 
-import requests
-
 from tvdbpy.errors import (
     APIClientNotAvailableError,
-    APIKeyRequiredError,
-    APIResponseError,
+    TvDBException,
 )
 from tvdbpy.helpers import BaseTvDB, api_key_required
 
@@ -56,6 +53,44 @@ class SearchResult(BaseSeries):
         return self._client.get_series_by_id(self.id, full_record=full_record)
 
 
+class Update(BaseTvDB):
+    """Updates details."""
+
+    def __init__(self, xml_data, metadata=True, client=None):
+        super(Update, self).__init__(client=client)
+        self.id = self._elem_value(xml_data, 'id')
+        self.kind = xml_data.tag.lower()
+        if metadata:
+            self.series = self._elem_value(xml_data, 'Series')
+            # next fields only make sense for banners
+            self.season = self._elem_value(xml_data, 'SeasonNum')
+            self.path = self._elem_value(xml_data, 'path')
+            self.type = self._elem_value(xml_data, 'type')
+            self.format = self._elem_value(xml_data, 'format')
+            self.language = self._elem_value(xml_data, 'language')
+            self.timestamp = self._elem_value(
+                xml_data, 'time',
+                cast=lambda v: datetime.utcfromtimestamp(int(v)))
+
+    @classmethod
+    def id_only(cls, xml_data, client=None):
+        item = cls(xml_data, metadata=False, client=client)
+        item.id = xml_data.text
+        return item
+
+    def get_updated_item(self):
+        if self._client is None:
+            raise APIClientNotAvailableError("Missing TvDB client")
+        item = None
+        if self.kind == self._client.SERIES:
+            item = self._client.get_series_by_id(self.id)
+        elif self.kind == self._client.EPISODE:
+            item = self._client.get_episode_by_id(self.id)
+        elif self.kind == self._client.BANNER:
+            item = urlparse.urljoin(self._base_image_url, self.path)
+        return item
+
+
 class Series(BaseSeries):
     """Series details."""
 
@@ -72,7 +107,8 @@ class Series(BaseSeries):
         # assert client is not None
         if data is None:
             data = self._client._get_series_full_data(self.id)
-        episodes = self._client._parse_multiple_entries(data, Episode, './Episode')
+        episodes = self._client._parse_multiple_entries(
+            data, Episode, './Episode')
         self._seasons = defaultdict(dict)
         for e in episodes:
             # need to set series into Episode
@@ -147,6 +183,16 @@ class Episode(BaseTvDB):
 class TvDB(BaseTvDB):
     """TvDB API client."""
 
+    ALL = 'all'
+
+    DAY = 'day'
+    WEEK = 'week'
+    MONTH = 'month'
+
+    SERIES = 'series'
+    EPISODE = 'episode'
+    BANNER = 'banner'
+
     def __init__(self, api_key=None):
         super(TvDB, self).__init__(client=None)
         self._api_key = api_key
@@ -197,3 +243,34 @@ class TvDB(BaseTvDB):
             self._api_key, series_id, season, number)
         response = self._get_xml_data(path)
         return self._parse_entry(response, Episode, './Episode')
+
+    @api_key_required
+    def updated(self, timeframe=None):
+        """Get details about updated items in a given timeframe."""
+        if timeframe is None:
+            timeframe = TvDB.DAY
+
+        if timeframe not in [TvDB.DAY, TvDB.WEEK, TvDB.MONTH, TvDB.ALL]:
+            raise TvDBException('Invalid timeframe specified')
+
+        path = '%s/updates/updates_%s.zip' % (self._api_key, timeframe)
+        response = self._get_compressed_data(path)
+        xml_file = response.read('updates_%s.xml' % timeframe)
+        data = ET.fromstring(xml_file)
+        return self._parse_multiple_entries(data, Update, './')
+
+    def updated_since(self, timestamp, kind=None):
+        """Get updated item ids since a given timestamp."""
+        if kind is None:
+            kind = TvDB.ALL
+
+        if kind not in [TvDB.SERIES, TvDB.EPISODE, TvDB.ALL]:
+            raise TvDBException('Invalid kind specified')
+
+        path = 'Updates.php?type=%s&time=%s' % (kind, str(timestamp))
+        response = self._get_xml_data(path)
+        series = self._parse_multiple_entries(
+            response, Update.id_only, './Series')
+        episodes = self._parse_multiple_entries(
+            response, Update.id_only, './Episode')
+        return series + episodes

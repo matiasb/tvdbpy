@@ -3,7 +3,7 @@ import os
 import unittest
 import xml.etree.ElementTree as ET
 
-from datetime import date
+from datetime import date, datetime
 from io import BytesIO
 
 import mock
@@ -14,8 +14,9 @@ from tvdbpy.errors import (
     APIClientNotAvailableError,
     APIKeyRequiredError,
     APIResponseError,
+    TvDBException,
 )
-from tvdbpy.tvdb import Episode, SearchResult, Series
+from tvdbpy.tvdb import Episode, SearchResult, Series, Update
 
 
 TESTS_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -242,6 +243,114 @@ class TvDBEpisodeTestCase(BaseTestCase):
             'http://thetvdb.com/api/123456789/series/80348/en.xml', params={})
 
 
+class TvDBUpdatesTestCase(BaseTestCase):
+    """Test updates instance."""
+
+    def setUp(self):
+        super(TvDBUpdatesTestCase, self).setUp()
+        self.response(
+            filename='updates_day.zip', content_type='application/zip')
+        self.tvdb = TvDB(api_key='123456789')
+        self.results = self.tvdb.updated()
+
+    def test_client_set(self):
+        result = self.results[0]
+        self.assertIsNotNone(result._client)
+
+    def test_update_attrs(self):
+        result = self.results[0]
+        expected = ['id', 'kind', 'series', 'season', 'path',
+                    'type', 'format', 'language', 'timestamp']
+        for attr in expected:
+            unexpected = object()
+            value = getattr(result, attr, unexpected)
+            self.assertNotEqual(value, unexpected)
+
+    def test_id_only_update_attrs(self):
+        self.response(filename='updates_since.xml')
+        results = self.tvdb.updated_since(1234567890)
+
+        result = results[0]
+        expected = ['id', 'kind']
+        for attr in expected:
+            unexpected = object()
+            value = getattr(result, attr, unexpected)
+            self.assertNotEqual(value, unexpected)
+
+        unexpected = ['series', 'season', 'path', 'type', 'format', 'language',
+                      'timestamp']
+        for attr in unexpected:
+            unexpected = object()
+            value = getattr(result, attr, unexpected)
+            self.assertEqual(value, unexpected)
+
+    def test_id_only_updates(self):
+        self.response(filename='updates_since.xml')
+        results = self.tvdb.updated_since(1234567890)
+
+        series = results[0]
+        episode = results[1]
+
+        self.assertEqual(series.id, '80348')
+        self.assertEqual(series.kind, TvDB.SERIES)
+        self.assertEqual(episode.id, '332179')
+        self.assertEqual(episode.kind, TvDB.EPISODE)
+
+    def test_series_update_values(self):
+        result = self.results[0]
+        assert result.kind == TvDB.SERIES
+
+        self.assertEqual(result.id, '80348')
+        self.assertEqual(result.timestamp, datetime(2009, 2, 13, 23, 31, 30))
+        self.assertEqual(result.series, None)
+
+    def test_get_series_item(self):
+        result = self.results[0]
+        assert result.kind == TvDB.SERIES
+
+        patcher = mock.patch.object(self.tvdb, 'get_series_by_id')
+        mock_get = patcher.start()
+        self.addCleanup(patcher.stop)
+
+        result.get_updated_item()
+        mock_get.assert_called_once_with('80348')
+
+    def test_episode_update_values(self):
+        result = self.results[1]
+        assert result.kind == TvDB.EPISODE
+
+        self.assertEqual(result.id, '332179')
+        self.assertEqual(result.series, '80348')
+        self.assertEqual(result.timestamp, datetime(2009, 2, 13, 23, 31, 30))
+
+    def test_get_episode_item(self):
+        result = self.results[1]
+        assert result.kind == TvDB.EPISODE
+
+        patcher = mock.patch.object(self.tvdb, 'get_episode_by_id')
+        mock_get = patcher.start()
+        self.addCleanup(patcher.stop)
+
+        result.get_updated_item()
+        mock_get.assert_called_once_with('332179')
+
+    def test_banner_update_values(self):
+        result = self.results[2]
+        assert result.kind == TvDB.BANNER
+
+        self.assertEqual(result.id, None)
+        self.assertEqual(result.series, '80348')
+        self.assertEqual(result.timestamp, datetime(2009, 2, 13, 23, 31, 30))
+        self.assertEqual(result.path, 'posters/77170.jpg')
+
+    def test_get_banner_item(self):
+        result = self.results[2]
+        assert result.kind == TvDB.BANNER
+
+        item = result.get_updated_item()
+        self.assertEqual(item, 'http://thetvdb.com/banners/posters/77170.jpg')
+
+
 class AnonymousTvDBTestCase(BaseTestCase):
     """TvDB client without API key test case."""
 
@@ -361,3 +470,58 @@ class TvDBTestCase(BaseTestCase):
         self.requests.get.assert_called_once_with(
             'http://thetvdb.com/api/123456789/series/80348/default/6/1/en.xml',
             params={})
+
+    def test_updated_without_timeframe_default_day(self):
+        self.response(
+            filename='updates_day.zip', content_type='application/zip')
+        results = self.tvdb.updated()
+
+        for result in results:
+            self.assertIsInstance(result, Update)
+
+        self.requests.get.assert_called_once_with(
+            'http://thetvdb.com/api/123456789/updates/updates_day.zip',
+            params={})
+
+    def test_updated_with_timeframe(self):
+        self.response(
+            filename='updates_month.zip', content_type='application/zip')
+        results = self.tvdb.updated(TvDB.MONTH)
+
+        for result in results:
+            self.assertIsInstance(result, Update)
+
+        self.requests.get.assert_called_once_with(
+            'http://thetvdb.com/api/123456789/updates/updates_month.zip',
+            params={})
+
+    def test_updated_with_invalid_timeframe(self):
+        with self.assertRaises(TvDBException):
+            self.tvdb.updated('anything')
+
+    def test_updated_since_no_kind_specified(self):
+        self.response(filename='updates_since.xml')
+        results = self.tvdb.updated_since(1234567890)
+
+        for result in results:
+            self.assertIsInstance(result, Update)
+
+        self.requests.get.assert_called_once_with(
+            'http://thetvdb.com/api/Updates.php?type=all&time=1234567890',
+            params={})
+
+    def test_updated_since_with_specific_kind(self):
+        self.response(filename='updates_since_episodes.xml')
+        results = self.tvdb.updated_since(1234567890, kind=TvDB.EPISODE)
+
+        for result in results:
+            self.assertIsInstance(result, Update)
+            self.assertEqual(result.kind, TvDB.EPISODE)
+
+        self.requests.get.assert_called_once_with(
+            'http://thetvdb.com/api/Updates.php?type=episode&time=1234567890',
+            params={})
+
+    def test_updated_since_with_invalid_kind(self):
+        with self.assertRaises(TvDBException):
+            self.tvdb.updated_since(123456780, 'anything')
