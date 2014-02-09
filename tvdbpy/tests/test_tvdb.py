@@ -195,6 +195,10 @@ class TvDBSeriesTestCase(BaseTestCase, BaseSeriesMixin):
         self.assertIsNone(result.poster)
         self.assertIsNone(result.banner)
 
+    def test_rating_data(self):
+        self.assertEqual(self.result.rating, 8.8)
+        self.assertEqual(self.result.rating_count, 818)
+
 
 class TvDBEpisodeTestCase(BaseTestCase):
     """Test episode instance."""
@@ -208,7 +212,7 @@ class TvDBEpisodeTestCase(BaseTestCase):
     def test_episode_attrs(self):
         expected = ['id', 'imdb_id', 'name', 'overview', 'language',
                     'first_aired', 'series_id', 'number', 'season', 'image',
-                    'guest_stars', 'director', 'writer']
+                    'guest_stars', 'director', 'writers']
         for attr in expected:
             unexpected = object()
             value = getattr(self.result, attr, unexpected)
@@ -255,6 +259,13 @@ class TvDBEpisodeTestCase(BaseTestCase):
         self.assertIsInstance(result, Series)
         self.requests.get.assert_called_with(
             'http://thetvdb.com/api/123456789/series/80348/en.xml', params={})
+
+    def test_rating_data(self):
+        self.assertEqual(self.result.rating, 7.7)
+        self.assertEqual(self.result.rating_count, None)
+
+    def test_writers_is_a_list(self):
+        self.assertEqual(self.result.writers, ['Josh Schwartz', 'Chris Fedak'])
 
 
 class TvDBUpdatesTestCase(BaseTestCase):

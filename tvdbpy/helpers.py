@@ -45,7 +45,9 @@ class BaseTvDB(object):
         value = None
         data = self._elem_value(xml_data, elem_name)
         if data:
-            value = data[1:-1].split('|')
+            # sometimes there are leading/trailing pipes...
+            data = data.strip('|')
+            value = data.split('|')
         return value
 
     def _get(self, path, content_type, **params):

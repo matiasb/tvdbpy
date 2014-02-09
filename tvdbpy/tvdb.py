@@ -102,6 +102,8 @@ class Series(BaseSeries):
         self._poster = self._elem_value(xml_data, 'poster')
         self.actors = self._elem_list_value(xml_data, 'Actors')
         self.genre = self._elem_list_value(xml_data, 'Genre')
+        self.rating = self._elem_value(xml_data, 'Rating', cast=float)
+        self.rating_count = self._elem_value(xml_data, 'RatingCount', cast=int)
         self._seasons = None
 
     def _load_episodes(self, data=None):
@@ -153,10 +155,12 @@ class Episode(BaseTvDB):
         self.overview = self._elem_value(xml_data, 'Overview')
         self.guest_stars = self._elem_list_value(xml_data, 'GuestStars')
         self.director = self._elem_value(xml_data, 'Director')
-        self.writer = self._elem_value(xml_data, 'Writer')
+        self.writers = self._elem_list_value(xml_data, 'Writer')
         self.language = self._elem_value(xml_data, 'Language')
         self._image = self._elem_value(xml_data, 'filename')
         self._first_aired = self._elem_value(xml_data, 'FirstAired')
+        self.rating = self._elem_value(xml_data, 'Rating', cast=float)
+        self.rating_count = self._elem_value(xml_data, 'RatingCount', cast=int)
 
     def __str__(self):
         return "Episode: %s" % self.name
