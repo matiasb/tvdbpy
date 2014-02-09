@@ -181,6 +181,20 @@ class TvDBSeriesTestCase(BaseTestCase, BaseSeriesMixin):
         self.assertEqual(
             self.result.genre, ['Action', 'Adventure', 'Comedy', 'Drama'])
 
+    def test_posters_may_be_null(self):
+        xml = """
+            <Series>
+                <id>80348</id>
+                <SeriesName>Chuck</SeriesName>
+                <Overview>description</Overview>
+                <FirstAired>2007-09-24</FirstAired>
+                <IMDB_ID>tt0934814</IMDB_ID>
+            </Series>"""
+        result = Series(ET.fromstring(xml))
+        self.assertEqual(result.id, '80348')
+        self.assertIsNone(result.poster)
+        self.assertIsNone(result.banner)
+
 
 class TvDBEpisodeTestCase(BaseTestCase):
     """Test episode instance."""
@@ -313,7 +327,18 @@ class TvDBUpdatesTestCase(BaseTestCase):
         self.addCleanup(patcher.stop)
 
         result.get_updated_item()
-        mock_get.assert_called_once_with('80348')
+        mock_get.assert_called_once_with('80348', extended=False)
+
+    def test_get_series_item_extended(self):
+        result = self.results[0]
+        assert result.kind == TvDB.SERIES
+
+        patcher = mock.patch.object(self.tvdb, 'get_series_by_id')
+        mock_get = patcher.start()
+        self.addCleanup(patcher.stop)
+
+        result.get_updated_item(extended=True)
+        mock_get.assert_called_once_with('80348', extended=True)
 
     def test_episode_update_values(self):
         result = self.results[1]
@@ -426,7 +451,7 @@ class TvDBTestCase(BaseTestCase):
 
     def test_get_series_by_id_full_data(self):
         self.response(filename='80348.zip', content_type='application/zip')
-        result = self.tvdb.get_series_by_id(80348, full_record=True)
+        result = self.tvdb.get_series_by_id(80348, extended=True)
 
         self.assertIsInstance(result, Series)
         self.requests.get.assert_called_once_with(

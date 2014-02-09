@@ -33,7 +33,8 @@ class BaseSeries(BaseTvDB):
     @property
     def banner(self):
         """Return series banner url."""
-        return urlparse.urljoin(self._base_image_url, self._banner)
+        if self._banner:
+            return urlparse.urljoin(self._base_image_url, self._banner)
 
     @property
     def first_aired(self):
@@ -47,10 +48,10 @@ class BaseSeries(BaseTvDB):
 class SearchResult(BaseSeries):
     """Series search result."""
 
-    def get_series(self, full_record=False):
+    def get_series(self, extended=False):
         if self._client is None:
             raise APIClientNotAvailableError("Missing TvDB client")
-        return self._client.get_series_by_id(self.id, full_record=full_record)
+        return self._client.get_series_by_id(self.id, extended=extended)
 
 
 class Update(BaseTvDB):
@@ -78,12 +79,12 @@ class Update(BaseTvDB):
         item.id = xml_data.text
         return item
 
-    def get_updated_item(self):
+    def get_updated_item(self, extended=False):
         if self._client is None:
             raise APIClientNotAvailableError("Missing TvDB client")
         item = None
         if self.kind == self._client.SERIES:
-            item = self._client.get_series_by_id(self.id)
+            item = self._client.get_series_by_id(self.id, extended=extended)
         elif self.kind == self._client.EPISODE:
             item = self._client.get_episode_by_id(self.id)
         elif self.kind == self._client.BANNER:
@@ -118,7 +119,8 @@ class Series(BaseSeries):
     @property
     def poster(self):
         """Return series poster url."""
-        return urlparse.urljoin(self._base_image_url, self._poster)
+        if self._poster:
+            return urlparse.urljoin(self._base_image_url, self._poster)
 
     @property
     def seasons(self):
@@ -218,9 +220,9 @@ class TvDB(BaseTvDB):
         return self._parse_multiple_entries(response, SearchResult, './Series')
 
     @api_key_required
-    def get_series_by_id(self, series_id, full_record=False):
+    def get_series_by_id(self, series_id, extended=False):
         """Get Series detail by series id."""
-        if full_record:
+        if extended:
             data = self._get_series_full_data(series_id)
             series = self._parse_full_series(data)
         else:
