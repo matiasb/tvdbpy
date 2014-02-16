@@ -248,6 +248,8 @@ class TvDBEpisodeTestCase(BaseTestCase):
         self.assertEqual(result.season, 2)
         # client is not set since result was not generated from API client
         self.assertIsNone(result._client)
+        # image may be null
+        self.assertIsNone(result.image)
 
     def test_is_episode(self):
         self.assertIsInstance(self.result, Episode)

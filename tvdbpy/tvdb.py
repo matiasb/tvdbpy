@@ -183,7 +183,8 @@ class Episode(BaseTvDB):
     @property
     def image(self):
         """Return episode image url."""
-        return urlparse.urljoin(self._base_image_url, self._image)
+        if self._image:
+            return urlparse.urljoin(self._base_image_url, self._image)
 
 
 class TvDB(BaseTvDB):
