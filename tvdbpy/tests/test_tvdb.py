@@ -1,3 +1,5 @@
+from __future__ import unicode_literals
+
 import codecs
 import os
 import unittest
@@ -40,7 +42,7 @@ class BaseTestCase(unittest.TestCase):
     def response(self, method='GET', status_code=200, filename=None,
                  content_type='text/xml'):
         """Set a custom response from a file."""
-        data = ''
+        data = b''
         if filename is not None:
             path = os.path.join(TESTS_DIR, 'testdata', filename)
             if content_type.startswith('text/'):

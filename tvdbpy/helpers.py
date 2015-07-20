@@ -1,11 +1,16 @@
-import urlparse
-import xml.etree.ElementTree as ET
+from __future__ import unicode_literals
+
+try:
+    import urllib.parse as urlparse
+except ImportError:
+    import urlparse
 import zipfile
 
 from functools import wraps
-from StringIO import StringIO
+from io import BytesIO
 
 import requests
+import xml.etree.ElementTree as ET
 
 from tvdbpy.errors import APIKeyRequiredError, APIResponseError
 
@@ -75,7 +80,7 @@ class BaseTvDB(object):
         """Do a GET request expecting a zipped file; return a ZipFile."""
         response = self._get(path, 'application/zip')
 
-        compressed_data = StringIO(response.content)
+        compressed_data = BytesIO(response.content)
         zip_file = zipfile.ZipFile(compressed_data)
         return zip_file
 

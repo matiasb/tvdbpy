@@ -1,3 +1,3 @@
 """Yet another TvDB wrapper."""
 
-from tvdbpy.tvdb import TvDB
+from tvdbpy.tvdb import TvDB  # noqa
