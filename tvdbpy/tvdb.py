@@ -1,6 +1,10 @@
 from __future__ import unicode_literals
 
-import urlparse
+try:
+    import urllib.parse as urlparse
+except ImportError:
+    import urlparse
+
 import xml.etree.ElementTree as ET
 
 from collections import defaultdict
